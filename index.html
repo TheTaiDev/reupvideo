@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Upload</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastify-js/1.12.0/toastify.min.css">
+    <style>
+        *,
+        ::after,
+        ::before {
+            box-sizing: border-box;
+        }
+
+        .animationload {
+            background-color: rgba(255, 255, 255, 0.7);
+            height: 100%;
+            width: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 10000;
+            display: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .osahanloading {
+            animation: 1.5s linear 0s normal none infinite running osahanloading;
+            background: #fed37f;
+            border-radius: 50%;
+            height: 50px;
+            width: 50px;
+            position: relative;
+        }
+
+        .osahanloading::after {
+            animation: 1.5s linear 0s normal none infinite running osahanloading_after;
+            border-color: #85d6de transparent;
+            border-radius: 50%;
+            border-style: solid;
+            border-width: 10px;
+            content: "";
+            height: 80px;
+            width: 80px;
+            position: absolute;
+            top: -15px;
+            left: -15px;
+        }
+
+        @keyframes osahanloading {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            50% {
+                background: #85d6de;
+                transform: rotate(180deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes osahanloading_after {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            50% {
+                border-color: #85d6de transparent;
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .fanpage-item {
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .fanpage-item.selected {
+            background-color: #e0f7fa;
+        }
+
+        @media (min-width: 576px) {
+            .fanpage-item {
+                flex: 0 0 48%;
+                max-width: 48%;
+            }
+        }
+
+        @media (max-width: 575px) {
+            .fanpage-item {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1 class="mt-4">Upload Videos to Facebook Fanpage</h1>
+
+        <div class="form-group mt-4">
+            <label for="accessToken">Facebook Access Token</label>
+            <input type="text" class="form-control" id="accessToken" placeholder="Enter your access token">
+            <button id="getFanpages" class="btn btn-primary mt-2">Get Fanpages</button>
+        </div>
+
+        <div class="form-group mt-4">
+            <label for="fanpageList">Select Fanpages</label>
+            <div id="fanpageList" class="d-flex flex-wrap"></div>
+        </div>
+
+        <div class="form-group mt-4">
+            <label for="videoFiles">Select Video Files</label>
+            <input type="file" class="form-control-file" id="videoFiles" multiple>
+        </div>
+
+        <div class="form-group mt-4">
+            <label for="titlesInput">Video Titles (one per line)</label>
+            <textarea id="titlesInput" class="form-control" rows="5" placeholder="Enter titles for each video, one per line"></textarea>
+        </div>
+
+        <div class="form-group mt-4">
+            <label for="intervalInput">Interval Between Uploads (minutes)</label>
+            <input type="number" class="form-control" id="intervalInput" placeholder="Enter interval between uploads">
+        </div>
+
+        <button id="uploadVideos" class="btn btn-success mt-2">Upload Videos</button>
+
+        <div class="mt-4">
+            <h1 id="status" class="text-center"></h1>
+        </div>
+    </div>
+
+    <div class="animationload" id="loading">
+        <div class="osahanloading"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastify-js/1.12.0/toastify.min.js"></script>
+    <script>
+        window.addEventListener('load', () => {
+            const loadingOverlay = document.getElementById('loading');
+            loadingOverlay.style.display = 'flex';
+
+            setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+            }, 1000);
+        });
+
+        document.getElementById('getFanpages').addEventListener('click', async () => {
+            const token = document.getElementById('accessToken').value.trim();
+            if (!token) {
+                alert('Please enter a valid access token.');
+                return;
+            }
+
+            console.log('Token entered.');
+
+            try {
+                // Save token to the server
+                const saveTokenResponse = await fetch('http://localhost:3000/save-token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ token }),
+                });
+
+                if (!saveTokenResponse.ok) {
+                    throw new Error(`Failed to save token: ${saveTokenResponse.statusText}`);
+                }
+
+                console.log('Token saved successfully.');
+
+                // Fetch fanpages
+                const response = await fetch('http://localhost:3000/fanpages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ token }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch fanpages: ${response.statusText}`);
+                }
+
+                const fanpages = await response.json();
+
+                const fanpageList = document.getElementById('fanpageList');
+                fanpageList.innerHTML = '';
+                fanpages.forEach(fanpage => {
+                    const div = document.createElement('div');
+                    div.className = 'fanpage-item';
+                    div.dataset.token = fanpage.access_token;
+                    div.innerHTML = `
+                        <img src="${fanpage.picture.data.url}" alt="${fanpage.name} avatar" class="rounded-circle mr-3" width="50" height="50">
+                        <div>
+                            <h5 class="mb-1">${fanpage.name}</h5>
+                            <p class="mb-0">Likes: ${fanpage.fan_count} | Followers: ${fanpage.followers_count}</p>
+                            <small>ID: ${fanpage.id}</small>
+                        </div>
+                    `;
+                    fanpageList.appendChild(div);
+                });
+
+                console.log('Fanpages fetched successfully.');
+            } catch (error) {
+                console.error('Error fetching fanpages:', error);
+            }
+        });
+
+        document.getElementById('fanpageList').addEventListener('click', (e) => {
+            if (e.target.closest('.fanpage-item')) {
+                const item = e.target.closest('.fanpage-item');
+                item.classList.toggle('selected');
+                if (item.classList.contains('selected')) {
+                    console.log(`Fanpage selected: ${item.querySelector('h5').textContent}`);
+                } else {
+                    console.log(`Fanpage deselected: ${item.querySelector('h5').textContent}`);
+                }
+            }
+        });
+
+        document.getElementById('uploadVideos').addEventListener('click', async () => {
+            const fileInput = document.getElementById('videoFiles');
+            const files = fileInput.files;
+            const titlesInput = document.getElementById('titlesInput').value.trim();
+            const titles = titlesInput.split('\n').map(title => title.trim()).filter(title => title);
+            const interval = document.getElementById('intervalInput').value.trim();
+
+            if (files.length === 0) {
+                alert('Please select video files.');
+                return;
+            }
+
+            if (titles.length === 0) {
+                alert('Please provide titles for each video.');
+                return;
+            }
+
+            const fanpageTokens = Array.from(document.querySelectorAll('.fanpage-item.selected'))
+                .map(div => div.dataset.token);
+
+            if (fanpageTokens.length === 0) {
+                alert('Please select at least one fanpage.');
+                return;
+            }
+
+            if (files.length !== titles.length) {
+                alert('The number of titles must match the number of files.');
+                return;
+            }
+
+            if (!interval || isNaN(interval) || interval <= 0) {
+                alert('Please provide a valid interval in minutes.');
+                return;
+            }
+
+            const formData = new FormData();
+            Array.from(files).forEach(file => formData.append('videos', file));
+            formData.append('fanpageTokens', JSON.stringify(fanpageTokens));
+            formData.append('titles', JSON.stringify(titles));
+            formData.append('interval', interval);
+
+            document.getElementById('loading').style.display = 'flex';
+
+            try {
+                const response = await fetch('http://localhost:3000/upload-videos', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let result = '';
+
+                const processedVideos = new Set(); // Track processed videos
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    result += decoder.decode(value, { stream: true });
+                    const lines = result.split('\n');
+                    lines.forEach(line => {
+                        if (line.trim()) {
+                            const uploadResult = JSON.parse(line);
+
+                            if (!processedVideos.has(uploadResult.videoIndex)) {
+                                processedVideos.add(uploadResult.videoIndex);
+
+                                Toastify({
+                                    text: `Video ${uploadResult.videoIndex} ${uploadResult.status === 'success' ? 'uploaded successfully!' : `failed to upload: ${uploadResult.message}`}`,
+                                    backgroundColor: uploadResult.status === 'success' ? "linear-gradient(to right, #00b09b, #96c93d)" : "linear-gradient(to right, #ff5f6d, #ffc371)",
+                                    position: 'top-right',
+                                    duration: 30000
+                                }).showToast();
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error uploading videos:', error);
+                alert(`Failed to upload videos: ${error.message || error}`);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+
+</html>
