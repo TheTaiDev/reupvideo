@@ -15,7 +15,12 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 fsExtra.ensureDirSync(UPLOAD_DIR);
 
 // Enable CORS and JSON parsing
-app.use(cors());
+app.use(cors(
+    {
+        origin: 'https://your-vercel-domain.vercel.app', // Thay thế bằng tên miền của bạn trên Vercel
+
+    }
+));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
