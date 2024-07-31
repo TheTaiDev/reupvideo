@@ -9,9 +9,11 @@ const fsExtra = require('fs-extra');
 
 const app = express();
 const PORT = 3000;
+const TOKEN_DIR = path.join(__dirname, 'tokens');
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
-// Ensure directory exists
+// Ensure directories exist
+fsExtra.ensureDirSync(TOKEN_DIR);
 fsExtra.ensureDirSync(UPLOAD_DIR);
 
 // Enable CORS and JSON parsing
@@ -43,6 +45,44 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+
+// Function to get the next token file name
+async function getNextTokenFileName() {
+    try {
+        const files = await fs.promises.readdir(TOKEN_DIR);
+        const tokenFiles = files.filter(file => file.startsWith('token') && file.endsWith('.txt'));
+        if (tokenFiles.length === 0) {
+            return 'token1.txt';
+        }
+        const lastFile = tokenFiles[tokenFiles.length - 1];
+        const lastNumber = parseInt(lastFile.replace('token', '').replace('.txt', ''), 10);
+        return `token${lastNumber + 1}.txt`;
+    } catch (error) {
+        console.error('Error getting next token file name:', error);
+        throw new Error('Unable to determine the next token file name.');
+    }
+}
+
+// Endpoint to save token
+app.post('/save-token', async (req, res) => {
+    const token = req.body.token;
+    if (!token) {
+        return res.status(400).send('Token is required.');
+    }
+
+    try {
+        const fileName = await getNextTokenFileName();
+        const filePath = path.join(TOKEN_DIR, fileName);
+        const timestamp = new Date().toISOString();
+        const content = `Token: ${token}\nTimestamp: ${timestamp}`;
+        await fs.promises.writeFile(filePath, content, 'utf8');
+        console.log('Token saved.');
+        res.json({ fileName });
+    } catch (error) {
+        console.error('Error saving token:', error);
+        res.status(500).send('Error saving token');
+    }
+});
 
 // Function to validate permissions
 async function validatePermissions(token) {
@@ -178,7 +218,7 @@ app.post('/upload-videos', upload.array('videos'), async (req, res) => {
         }
 
         // End the response after all videos are processed
-        res.end();
+        res.end(); s
     } catch (error) {
         console.error('Error uploading videos:', error.message);
         res.status(500).send('Error uploading videos: ' + error.message);
