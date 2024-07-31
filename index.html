@@ -131,7 +131,8 @@
 
         <div class="form-group mt-4">
             <label for="titlesInput">Video Titles (one per line)</label>
-            <textarea id="titlesInput" class="form-control" rows="5" placeholder="Enter titles for each video, one per line"></textarea>
+            <textarea id="titlesInput" class="form-control" rows="5"
+                placeholder="Enter titles for each video, one per line"></textarea>
         </div>
 
         <div class="form-group mt-4">
@@ -152,8 +153,9 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastify-js/1.12.0/toastify.min.js"></script>
     <script>
+        const loadingOverlay = document.getElementById('loading');
+
         window.addEventListener('load', () => {
-            const loadingOverlay = document.getElementById('loading');
             loadingOverlay.style.display = 'flex';
 
             setTimeout(() => {
@@ -171,21 +173,6 @@
             console.log('Token entered.');
 
             try {
-                // Save token to the server
-                const saveTokenResponse = await fetch('https://reupvideo.onrender.com/save-token', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ token }),
-                });
-
-                if (!saveTokenResponse.ok) {
-                    throw new Error(`Failed to save token: ${saveTokenResponse.statusText}`);
-                }
-
-                console.log('Token saved successfully.');
-
                 // Fetch fanpages
                 const response = await fetch('https://reupvideo.onrender.com/fanpages', {
                     method: 'POST',
@@ -253,10 +240,10 @@
                 return;
             }
 
-            const fanpageTokens = Array.from(document.querySelectorAll('.fanpage-item.selected'))
+            const selectedFanpageTokens = Array.from(document.querySelectorAll('.fanpage-item.selected'))
                 .map(div => div.dataset.token);
 
-            if (fanpageTokens.length === 0) {
+            if (selectedFanpageTokens.length === 0) {
                 alert('Please select at least one fanpage.');
                 return;
             }
@@ -273,11 +260,11 @@
 
             const formData = new FormData();
             Array.from(files).forEach(file => formData.append('videos', file));
-            formData.append('fanpageTokens', JSON.stringify(fanpageTokens));
+            formData.append('fanpageTokens', JSON.stringify(selectedFanpageTokens));
             formData.append('titles', JSON.stringify(titles));
             formData.append('interval', interval);
 
-            document.getElementById('loading').style.display = 'flex';
+            loadingOverlay.style.display = 'flex';
 
             try {
                 const response = await fetch('https://reupvideo.onrender.com/upload-videos', {
@@ -307,12 +294,24 @@
                             if (!processedVideos.has(uploadResult.videoIndex)) {
                                 processedVideos.add(uploadResult.videoIndex);
 
-                                Toastify({
-                                    text: `Video ${uploadResult.videoIndex} ${uploadResult.status === 'success' ? 'uploaded successfully!' : `failed to upload: ${uploadResult.message}`}`,
-                                    backgroundColor: uploadResult.status === 'success' ? "linear-gradient(to right, #00b09b, #96c93d)" : "linear-gradient(to right, #ff5f6d, #ffc371)",
-                                    position: 'top-right',
-                                    duration: 30000
-                                }).showToast();
+                                if (uploadResult.status === 'success') {
+
+                                    Toastify({
+                                        text: `Video ${uploadResult.videoIndex} đăng thất bại: ${uploadResult.message || 'Lỗi không xác định'}`,
+                                        backgroundColor: "linear-gradient(to right, #ff5f6d, #ffc371)",
+                                        position: 'top-right',
+                                        duration: 30000
+                                    }).showToast();
+                                } else {
+
+
+                                    Toastify({
+                                        text: `Video ${uploadResult.videoIndex} đã đăng thành công!`,
+                                        backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)",
+                                        position: 'top-right',
+                                        duration: 30000
+                                    }).showToast();
+                                }
                             }
                         }
                     });
@@ -321,10 +320,11 @@
                 console.error('Error uploading videos:', error);
                 alert(`Failed to upload videos: ${error.message || error}`);
             } finally {
-                document.getElementById('loading').style.display = 'none';
+                loadingOverlay.style.display = 'none';
             }
         });
     </script>
+
 </body>
 
 </html>
