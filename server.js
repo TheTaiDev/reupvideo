@@ -31,16 +31,9 @@ const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, UPLOAD_DIR);
     },
-    filename: async (req, file, cb) => {
-        try {
-            const files = await fs.promises.readdir(UPLOAD_DIR);
-            const videoFiles = files.filter(f => f.startsWith('video') && f.endsWith('.mp4'));
-            const fileNumber = videoFiles.length + 1;
-            cb(null, `video_${fileNumber}.mp4`);
-        } catch (error) {
-            console.error('Error getting file number:', error);
-            cb(error, null);
-        }
+    filename: (req, file, cb) => {
+        const fileNumber = Date.now();
+        cb(null, `video_${fileNumber}.mp4`);
     }
 });
 
@@ -142,7 +135,7 @@ function wait(ms) {
 app.post('/upload-videos', upload.array('videos'), async (req, res) => {
     const files = req.files;
     const fanpageTokens = JSON.parse(req.body.fanpageTokens);
-    const titles = JSON.parse(req.body.titles); // Array of titles
+    const titles = JSON.parse(req.body.titles);
     const interval = parseInt(req.body.interval, 10) * 60000; // Interval in milliseconds
 
     if (!files || files.length === 0) {
@@ -162,16 +155,9 @@ app.post('/upload-videos', upload.array('videos'), async (req, res) => {
         console.log(`Number of fanpages selected: ${fanpageTokens.length}`);
         console.log(`Video titles: ${titles.join(', ')}`);
 
-        let currentIndex = 0;
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const title = titles[i]; // Get the title for the current video
-
-            let uploadSuccess = false;
-            let errorMessage = '';
-
-            for (const token of fanpageTokens) {
+        // Function to upload video to all fanpages
+        async function uploadToFanpages(file, title) {
+            const results = await Promise.all(fanpageTokens.map(async (token) => {
                 const form = new FormData();
                 form.append('file', fs.createReadStream(file.path));
                 form.append('access_token', token);
@@ -184,28 +170,38 @@ app.post('/upload-videos', upload.array('videos'), async (req, res) => {
                         }
                     });
 
-                    if (response.status === 200) {
-                        console.log(`Successfully uploaded video ${file.originalname} to fanpage with token: ${token}`);
-                        uploadSuccess = true;
-                        break; // Stop trying other tokens if upload is successful
-                    } else {
-                        console.error(`Failed to upload video ${file.originalname} to fanpage with token: ${token}`);
-                    }
+                    return {
+                        token,
+                        success: response.status === 200,
+                        message: response.status === 200 ? 'Upload successful' : `Failed to upload: ${response.statusText}`
+                    };
                 } catch (error) {
-                    console.error(`Error uploading video ${file.originalname} with token ${token}: ${error.message}`);
-                    errorMessage = error.message;
+                    return {
+                        token,
+                        success: false,
+                        message: error.message
+                    };
                 }
-            }
+            }));
+            return results;
+        }
+
+        let currentIndex = 0;
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const title = titles[i];
+
+            // Upload video to all fanpages
+            const uploadResults = await uploadToFanpages(file, title);
 
             // Send the result for this video immediately
             res.write(JSON.stringify({
                 videoIndex: currentIndex + 1,
-                status: uploadSuccess ? 'success' : 'failed',
-                message: uploadSuccess ? 'Upload successful' : `Upload failed: ${errorMessage}`
+                results: uploadResults
             }) + '\n');
-            res.flushHeaders(); // Ensure the headers are sent immediately
+            res.flushHeaders();
 
-            // Increment the currentIndex after each video
             currentIndex++;
 
             // Cleanup: delete the file after upload
@@ -217,8 +213,7 @@ app.post('/upload-videos', upload.array('videos'), async (req, res) => {
             }
         }
 
-        // End the response after all videos are processed
-        res.end(); s
+        res.end();
     } catch (error) {
         console.error('Error uploading videos:', error.message);
         res.status(500).send('Error uploading videos: ' + error.message);
