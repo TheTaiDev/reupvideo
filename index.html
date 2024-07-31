@@ -280,7 +280,7 @@
             document.getElementById('loading').style.display = 'flex';
 
             try {
-                const response = await fetch('http://localhost:3000/upload-videos', {
+                const response = await fetch('https://reupvideo.onrender.com/upload-videos', {
                     method: 'POST',
                     body: formData
                 });
