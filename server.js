@@ -17,7 +17,7 @@ fsExtra.ensureDirSync(UPLOAD_DIR);
 // Enable CORS and JSON parsing
 app.use(cors(
     {
-        origin: 'https://reupvideo-git-main-manhthetaipys-projects.vercel.app/', // Thay thế bằng tên miền của bạn trên Vercel
+        origin: 'https://reupvideo.vercel.app', // Thay thế bằng tên miền của bạn trên Vercel
 
     }
 ));
